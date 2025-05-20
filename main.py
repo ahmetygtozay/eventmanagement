@@ -125,11 +125,34 @@ def recommend(request: RecommendRequest):
     llm_output = query_huggingface_llm(prompt)
     final_output = extract_llm_answer(llm_output)
 
-    # Step 3: Return response
+    # Step 3: Save recommendations to database
+    try:
+        for event in retrieved_events:
+            event_id = event["event_id"]
+
+            # Avoid duplicates (optional)
+            cur.execute("""
+                SELECT 1 FROM user_recommendations
+                WHERE user_id = %s AND event_id = %s
+            """, (user_id, event_id))
+
+            if not cur.fetchone():
+                cur.execute("""
+                    INSERT INTO user_recommendations (user_id, event_id)
+                    VALUES (%s, %s)
+                """, (user_id, event_id))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Failed to save recommendations")
+
+    # Step 4: Return response
     return {
         "events": retrieved_events,
         "llm_response": final_output
     }
+
 
 
 
