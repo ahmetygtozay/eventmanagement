@@ -2,7 +2,7 @@ from personalized_search import recommend_events, build_rag_prompt
 import requests
 
 # Replace with your actual Hugging Face API key
-HUGGINGFACE_API_KEY = "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"
+HUGGINGFACE_API_KEY = "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"
 
 # Use a good, free model
 MODEL_NAME = "HuggingFaceH4/zephyr-7b-beta"

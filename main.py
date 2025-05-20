@@ -10,7 +10,7 @@ from feed_prompt_into_llm import query_huggingface_llm, extract_llm_answer
 # ------------------ Setup ------------------ #
 app = FastAPI()
 
-# Enable CORS for all origins (adjust if needed)
+# Enable CORS for all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"], # React frontend URL
@@ -35,7 +35,7 @@ cur = conn.cursor()
 
 # Hugging Face LLM API settings
 HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
-HUGGINGFACE_API_TOKEN = "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"
+HUGGINGFACE_API_TOKEN = "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"
 
 # ------------------ Data Models ------------------ #
 class RecommendRequest(BaseModel):
@@ -117,15 +117,20 @@ def recommend(request: RecommendRequest):
     user_id = request.user_id
     query = request.query
 
+    # Step 1: Get retrieved events with similarity
     retrieved_events = recommend_events(user_id, query)
+
+    # Step 2: Build prompt and get LLM response
     prompt = build_rag_prompt(query, retrieved_events)
     llm_output = query_huggingface_llm(prompt)
     final_output = extract_llm_answer(llm_output)
 
+    # Step 3: Return response
     return {
         "events": retrieved_events,
         "llm_response": final_output
     }
+
 
 
 @app.get("/api/events/{event_id}")
@@ -177,4 +182,35 @@ def get_user_history(user_id: int):
 
     except Exception as e:
         logger.exception("Error fetching user history")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/users/{user_id}/recommendations")
+def get_user_recommendations(user_id: int):
+    try:
+        cur.execute("""
+            SELECT e.id, e.title, e.description, e.category, e.tags, e.location, ur.recommended_at
+            FROM user_recommendations ur
+            JOIN events e ON ur.event_id = e.id
+            WHERE ur.user_id = %s
+            ORDER BY ur.recommended_at DESC
+        """, (user_id,))
+        rows = cur.fetchall()
+
+        recommendations = [
+            {
+                "id": row[0],
+                "title": row[1],
+                "description": row[2],
+                "category": row[3],
+                "tags": row[4],
+                "location": row[5],
+                "recommended_at": row[6]
+            } for row in rows
+        ]
+
+        return {"user_id": user_id, "recommendations": recommendations}
+
+    except Exception as e:
+        logger.exception("Error fetching saved recommendations")
         raise HTTPException(status_code=500, detail=str(e))
